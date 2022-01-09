@@ -1,0 +1,18 @@
+# -*- Makefile -*-
+
+include $(BASE)/make.cfg
+
+CCOPTS=$(GENOPTS) -fPIC
+LINKOPTS=$(GENOPTS) -shared
+
+LIBFILE=lib$(LIBRARY).a
+
+$(LIBFILE): $(OBJECTS)
+	$(COMPILELIB) $(LINKOPTS) -o $(LIBFILE) $(OBJECTS) $(OTHERLIBS)
+
+%.o: %.cc %.hh
+	$(COMPILEOBJ) $(CCOPTS) $(INCPATH) -c $<
+
+clean:
+	rm -vf $(LIBFILE) $(OBJECTS)
+

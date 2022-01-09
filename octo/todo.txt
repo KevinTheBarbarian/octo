@@ -1,0 +1,693 @@
+
+What if the perfect language wasn't a single monolithic feature set, but a set of interacting
+features that were available a la cart?  In this scenario, the program follows a kind of 'blackboard
+pattern', where each language feature is a transformation that may or may not depend on other such
+transformations.  In this language design approach, the language may have garbage collection, or
+not; it may have built-in collections, or not.  It may have infix operators, or not.  Most of the
+core language features are going to be interesting to most customers, but some of the odder ones
+such as building dataflow systems or converting finite state machines into code might only apply a
+small percentage of the time.  Actors, functional systems, object orientation, all are conceptual
+transformations or collections of such, that convert high level concepts into lower level ones.
+
+  -> Genericity applies parameters to code templates -- essentially fill-in-the-blank.  The ad-libs
+     in this case are object types, and the constructed interaction is the interaction between (1) a
+     completely specified algorithm, defined in terms of unspecified types, and (2) the selection of
+     the types used, and the definitions of the properties of those types; the set of selected types
+     varies from instantiation to instantiation.
+
+  -> Inheritance is a different kind of fill-in-the-blank.  It partially defines behavior and allows
+     subtyping to define the behavior further to complete the algorithm.  The constructed interaction
+     is between (1) an algorithm, which is partially specified in terms of method signatures, and (2)
+     the definitions of those methods in each subtype, which vary from subtype to subtype.
+
+  So genericity is an interaction between an algorithm (function) and some class definitions, and
+  inheritance is the partial construction of an algorithm, and the completion of that algorithm in
+  different ways.
+
+  In human language terms, inheritance is like completing a sentence in different ways, and
+  genericity is like attaching different meanings to the pronouns found in a sentence.
+
+
+
+Transformations and 'jargon spaces' are common in human language; but most jargon constructs are
+such that they might be considered as 'libraries' in human languages.  But programs written in
+programming languages are machinery, not prose, generally speaking.
+
+By the way, what is prose?  It's either a description of the state of the world, or (more commonly
+in fiction) a series of descriptions of successive states of the world and the transformations
+between them.  Can a program work this way?  What if the base statement of the world is an
+assertion?  Then fictional prose is like trace output from a complex simulation.  In a 'world
+building' system, the simulation is the interesting detail.  In a character-driven novel, the
+interesting element is the user interaction with the system -- e.g. the "ui/ux story".
+
+------------------------------
+
+There shouldn't be any 'heap' objects in places like GrammarParser.  Instead, there should be one
+heap, that is managed either by 'main' or by some similar high-level layer of the codebase.  If this
+is not done, then bad things might happen when the parser object goes away.  It's possible to remove
+objects from one heap and move them to another but it probably isn't a good idea.  If you have GC,
+then just use the GC to manage things until there is a reason not to.
+
+------------------------------
+
+NEXT:
+
+  1. Write the code that stores the function definition in the source library.
+
+  2. Write code to parse an import module statement.
+
+  3. Code that stores an OctoObject pointer must either be a HeapRoot or be owned and traversed by
+     an object that is.  Make sure that the runtime support code follows the rules.
+
+------------------------------
+
+A. Parsing a file that contains two functions doesn't work.  Why?
+
+   Must fix this... (done)
+
+   Also, this is probably a good candidate for unit testing.
+
+------------------------------
+
+Q. What is the minimum a runtime needs to do to have at least nonzero functionality?
+
+   Items 1 and 2 below would allow running simple code in a flat namespace.
+
+   After that, need to implement 'import' and then some kind of namespace or module, e.g. visibility
+   control and partitioning.
+
+------------------------------
+
+Is it reasonable for Octo to have a more natural concept of visibility?  E.g. this part of the API
+is visible in this context, or to classes of this package, or ...?
+
+------------------------------
+
+We can now turn code into sequence objects.
+
+Next:
+
+  1. Write a 'run' method that builds a 'runtime' or 'process' object.  There is something call
+     'Runtime' but it probably isn't a complete solution for this.
+
+  2. Create a code management object (named SourceCode? or something) to store the nested code
+     sequences in.
+
+  3. run method should have a loop that loads the first module, then either parses all the
+     dependencies, or at least makes note of them.
+
+  4. So run method adds the initial object's name to a queue, then parses, and each import goes into
+     the queue unless it's already been imported.
+
+     Each module and/or object therein needs to be marked with a list of the other modules that are
+     visible to it.
+
+  5. At this point we'll probably want to consider packages or namespaces or whatever.
+
+  6. In addition to the tree structure for the code, parsing will need to return a list of imported
+     modules and/or symbols, so that recursion in #3, #4 can work.
+
+------------------------------
+
+The nested code sequence stuff apparently works now.
+
+NEXT:
+
+  Replace a lot of the 'string' stuff with either numbers or atoms.  For example, 'print' should be
+  an atom, not a string, and '5' should be a number, not a string.
+
+  -> Is this correct?  I think it is, but I'm not sure.  Having atoms in the code is complicated.
+
+  If an atom appears directly in code, we probably are going to look it up and get the value.  So if
+  we are using atoms all over the place, what effect does this have?
+
+  If I say:
+
+  foo(x)
+  {
+    return x+x;
+  }
+
+  Is the 'foo' evaluated (looked up)?  No, we're defining it here, so it is implicitely 'quoted'.
+
+  How about the 'x'?  The first 'x' is not, but the other x's are resolved to refer to the first x.
+
+  But all of these are 'conventions'.  That is, we could make the definition look like this:
+
+  "foo"("x")
+  {
+     return x+x;
+  }
+
+  In this scenario, I'm quoting the foo and the first x.  If I didn't they would be resolved, and
+  this would allow me to substitute in whatever values I wanted.  For example, foo could be a
+  variable that holds an arbitrary (input) atom.  Then this definition defines a function with that
+  name.
+
+  The second approach is ugly -- better to use atoms and have the user do something like "*atom" or
+  "&atom" to ask for more evaluation or less evaluation.
+
+HOWEVER:
+
+  There is also the complexity of whether this applies to the original 'source' data, or to the NCS
+  form of the same code.  Do they use the same convention, or does one use a string where the other
+  uses an atom?
+
+------------------------------
+
+Next: finish the parse-tree-to-code by rewriting the code block AST.
+
+ Iota: Write a function 
+
+------------------------------
+
+BUG: Currently, the 'inputs' and 'outputs' blocks become '*' if they are missing.  However, this is
+not correct.
+
+If there are no inputs, the inputs block should be empty.  If there are no outputs, the outputs
+block should be "*" because we are going to try to deduce it, but the "*" for 'we are deducing the
+inputs' isn't right.
+
+ [ FIXED ]
+
+------------------------------
+
+There should be a 'Process' class that holds all the state associated with the current (running,
+interpreted, etc) process.  This class would not be a singleton, although effectively it would be
+used that way; it would essentially just exist to help mentally organize the system, splitting the
+data between the 'program' and the 'compiler / runtime / support' code.
+
+------------------------------
+
+NOTE: The Octo syntax should distinguish between the no-return-type, and the 'return type not
+specified' cases.  This is present in the syntax but not in the AST or the nested code sequences
+output value.  One approach is to use "*" to indicate 'possibly more elements here', which could
+also be used later on for variable signature functions.
+
+------------------------------
+
+NEXT:
+
+ 1. Keep working on the logic of ParseTreeToCode to fill in more of the function definition.
+
+ 2. Create syntax for declaring function return value types; maybe something like:
+
+    f(x) -> (int, string)
+    {...}
+
+------------------------------
+
+1. Implement GC for the parse stuff.
+
+2. Remove all the 'release' logic.
+
+------------------------------
+
+Add a little functionality to 'sequence' class / interface.
+
+Consult notebook for next step.
+
+------------------------------
+
+Maybe it's just the Lamport influence, but I feel like I need to diagram or catalog the parts of the
+system and their interactions.
+
+  PARSER
+
+  GC and MM code
+
+  In-language types
+
+  Raw Code library -- all the 'raw' code that has been parsed.
+
+  Specialized code library -- the specialized versions of raw code. These are stored with their
+  mangled names.
+
+  Built-in functions -- things like adding integers and 'print'.
+
+  Interpreter / Compiler
+
+
+------------------------------
+
+Next actions:
+
+  * The AST should be converted to the 'sequence' representation, which involves an in-language
+    container called 'sequence' or similar.
+
+  * That means the next step is to define a primitive version of the 'sequence' class for the
+    language.  Which I've sort of been doing already.  Features this class would like to have:
+
+    -> Sequential ordering, so that statements in a block of code maintain their ordering.
+
+    -> Functor based indexing -- in this case, indexing by the first element of the contained
+       element.  Put another way, for a container of functions G, we want to index by G[i][0] for
+       each element i.  This is desired for searching for functions in a scope.
+
+         * But the scope could be a different data type -- the map or association type.
+
+    -> Some means of iteration to get to the contents of the container.
+
+    -> Hidden contents -- like the special indices, and any 'compiled' code that might correspond to
+       the contents of the sequence assuming the sequence is actually a piece of code.
+
+
+    !!! HOWEVER, we already have the Sequence class, which is just a vector<PValue> right now.
+
+        First question: is the Sequence class mentioned here 'good enough for now'?
+
+        Second question: does defining a better one help us?
+
+          Answer for now:
+
+             I think making Sequence an 'interface' or a wrapper around an interface might be a good
+             approach.  That is, there can be a variety of things that do the 'sequence' task but
+             internally the actual sequence code might change.
+
+------------------------------
+
+Nifty idea:
+
+   We can transform a 'vector' into a hash table fairly easily.  It works like this:
+
+      Underneath the hash table is the 'backing table'.  The vector becomes this.
+
+      The contents of the vector are treated as a forward-probing hash table which is indexed by the
+      same integer indexes the vector has been using.
+
+      The hash function for the hash table is assigned to one that treats the 'index' as the hash of
+      itself.  That is, the hash of '19' is '19', and the hash of '117' is '117' and so on.
+
+      The tricky part here is that there is no way for this hash table to be 'empty' because the
+      contents of the table are all valid.  That is, forward probing instantly will circle the
+      entire table, because an integer vector can't be empty.  Unless there is a bit table
+      indicating the blank elements.  But this concept is already looking a bit 'thin'.
+
+------------------------------
+
+Currently there is some behavior in the 'octo' binary that can be considered 'unit test' behavior.
+This should eventually be delegated to a '--unit-test' mode.
+
+------------------------------
+
+It's possible that the transformation process mentioned below can ignore lexical scope.  When a
+function is translated from source to a type-specialized form, the various symbols it references can
+be resolved at that time.  We know what scope the function was defined in, and for each 'definition
+context' (e.g. typically a file or package) there is a well-defined chain of scopes (starting with
+that file or package itself).
+
+------------------------------
+
+I think the next item is pretty spot-on, except for one major detail:
+
+What about lexical scope?
+
+    The answer, I think, is that wherever you 'get' some code to run, the local 'scope' where you found
+    it is where you look for the things it mentions.  So when I run a function "bleep", the scope where
+    I found bleep is at the top of the 'scope chain' for running "bleep".  The "bleep" function is
+    analyzed to 'bind' all the mentioned names to different scoped locations where a definition is
+    found.  Moreover, nothing in the calling code's 'scope chain' is made visible for the purpose of
+    evaluating the function call.
+
+    The funky 'special form' approach where code is passed-in to a macro but the passed-in code binds to
+    the origin site is an advanced and slightly confusing topic that I don't plan to cover until this
+    more basic stuff is nailed down in more detail.
+
+How are functions compiled?
+
+    When a function definition is found, the types used to call the function are combined to form a
+    'type recipe' that is used to specialize the function definition into a statically typed version
+    of the function.  This 'specialized' version has embedded type recipes for all the functions
+    that it calls, and so on.  Onces specialized the function can be run in interpreter mode, or
+    cooked into any of a number of faster execution formats (register byte code, LLVM code, C code,
+    etc.)
+
+    In the beginning there need only be one 'sequence' type and one 'map' type.  Later versions can
+    use automorphing or other techniques.
+
+    It's important that each function implementation have a single, rigorous, interpretation.  For
+    example, there shouldn't be a call to a function that adds two objects together where the 'add'
+    function looks at the two objects to see if they look like integers.
+
+------------------------------
+
+What does this look like in 'data' format?
+
+    f()
+    {
+    }
+
+I think this:
+
+["f", [], []]
+
+How about this?
+
+    factorial(n)
+    {
+        i := 1;
+        f := 1;
+
+        while(i < n) {
+            f *= i;
+            i += 1;
+        }
+        print(f, "\n");
+    }
+
+I think it looks like this:
+
+    ["factorial", ["n"],
+      [[":=", "i", "1"],
+       [":=", "f", "1"],
+       ["while", ["<", "i", "n"],
+         [["*=", "f", "i"],
+          ["+=", "i", "1"]]
+       ],
+       ["print", "f", "\n"]
+      ]
+    ]
+
+But what distinguishes a form like ["f", [], []] from something like ["print", [], []]?
+
+That is, what makes "factorial" here a function definition not a function call?  And if the only
+difference is the context where "factorial" is considered a definition because it exists inside a
+'scope' object, then what if 'factorial' wanted to declare a 'local' function inside itself?
+
+In lisp, this is moot because execution is the default: the above would start with the special form
+"define-function", which is run immediately on the rest of the stuff and makes a function out of it.
+In this scenario, the function is just dumb data until someone decides to 'run' it.
+
+I think the answer is that in the middle of code, this:
+
+["f", [], []]
+
+Is a function call, and in the middle of a data structure, this:
+
+foo := { ["f", [], []] }
+
+Is either normal data or a function definition and there really isn't a difference.
+
+If you want to define a function in a code block, what you would do is this:
+
+ foo := ["f", [], []];
+ foo();
+
+Which in data terms would look like this:
+
+ [":=", "foo", [[], []],
+ ["foo"];
+
+The word 'foo' is looked up and it is discovered that it is a local sequence.  The provided
+arguments (here there aren't any) are passed to the sequence which is executed and since it has no
+code, nothing happens.
+
+------------------------------
+
+Next:
+
+  Convert the AST into a tree of sequences; each sequence is a function call.  This can be a basic
+  tree traversal approach.  It shouldn't do any simplification or optimization -- it should just be
+  a direct translation of the input.
+
+The top-level function...
+
+  The top-level 'function' in this object might be something like "@define_function" or just
+  "@define".  I'm not sure if it should have the '@'.  Or it might even be like this:
+
+      "[:= name [function ...]]"
+
+  Or...
+
+      "[name := [function ...]]"
+
+  This reuses the := operator.  The tricky part here is whether that's a good idea -- specifically,
+  should := mean 'define this thing in this scope' and also 'create a local variable in this stack
+  frame'.  Is it reasonable for it to be both?
+
+  What does the [function ...] syntax actually do?  Can any code like ["+" 1 2] be construed as an
+  expression?
+
+  What 'function' does has to be to 'mark' or 'prepare' or 'bind' the code to interact with the
+  scope it is in.  Since I don't want the order in which functions are declared to be important, the
+  definition of a function probably can't be an 'active' action -- that is, defining a function just
+  takes a chunk of data and makes it a function instead.
+
+
+If the top-level element is something like "define-function":
+
+  [define-function, name1, [arg1, arg2], [code]]
+
+... that suggests that the top-level function is 'active' -- it's something called define-function
+that is running right now and its action is defining a function.
+
+On the other hand, if the code looks like this:
+
+  [name1, [function, [arg1, arg2], [code]]]
+
+Then what we are doing is dropping an object with two fields into the scope.  The first field is the
+name and the second field is data.  If a function call is encountered, and this scope is searched,
+then the scope is a data structure containing these two element things, and the first element of
+each thing is the name of the function.  (It's all turtles all the way down!)
+
+  The scope is like this:
+
+  [
+    [name1, [function, [arg1, arg2], [code1]]],
+    [name2, [function, [arg3], [code2]]]
+  ]
+
+So the code is a sequence (or map), and the function definition is a sequence, and so on.
+
+What does it mean to 'run' a function?  It means that we supply arguments to it and the code in it
+is evaluated and data probably comes out.
+
+Another way to formulate this:
+
+  {
+    [name1, [function, [arg1, arg2], [code1]]],
+    [name2, [function, [arg3], [code2]]]
+  }
+
+Here I am using curly braces to describe the scope.  How is that different?  It's different because
+we consider curly braces to indicate a 'map' object.  Which is confusing in this case because curly
+braces also mean a code block, but a code block is the opposite of a map -- it's explicitly ordered,
+whereas here this data is unordered.
+
+  So for 'data' literals, {} means map and [] means sequence.  But for programming language
+  structure, we use {} for an ordered list of code elements like the body of a 'struct', or the
+  expressions in a function.
+
+This is all a side trail...  the question is really whether defining a function is a declarative
+process or an active one.  I think declarative might be a better way to look at it.  This might need
+to be revisited when figuring out how to add macros to the language.
+
+------------------------------
+
+Status:
+
+  It looks like I have a clean 'AST' construction.
+
+Next:
+
+  Now there are several approaches:
+
+  #1. Build a real 'function tree' from this.  The function tree would contain objects representing
+      the actual functionality here -- not just a parse tree but a polymorphic function object for
+      each 'operation'.
+
+      Such function objects could conform to an interface with the ability to do things such as
+      render the code as a C++ template function (maybe) or execute the code in 'dynamic mode'
+      (maybe), or answer questions, analyze, and specialize the code to a set of static types
+      (hopefully).
+
+  #2. Rewrite the AST as an "in-language data structure".  This need not be a real 'octo data
+      structure' but should be something analogous.  For example, if octo has a 'sequence' type,
+      this could be a tree of sequences.  If octo has only Lua style 'tables', it could be those.
+
+      Then we can do something like #1.  But this allows functions that build such data structures
+      to also connect into the option #1 magic.
+
+  #3. Do option #2, but don't bother with #1 (e.g. don't try to analyze or make code).  Instead,
+      stuff the AST into the pile of definitions for the scope it belongs to.  The translation and
+      specialization steps will happen when the function is called.
+
+------------------------------
+
+Question: Do we really need 'just one' collection type?  It might make sense to do 2 -- a 'bucket'
+          and a sequence.  The sequence could act like a circular queue, and the 'bucket' is the
+          generic 'magic map' that I've been toying with.  Then the question is, can one of these be
+          profitably contained in the other?
+
+------------------------------
+
+Concept: Consider using big sorted collections as a 'map' replacement.  This would work something
+         like the way HBASE or BIGTABLE works -- namely, when you add data to the set, it is slapped
+         onto the end of a table for you.  When the amount of data gets to a certain size -- perhaps
+         4k or perhaps the size of the L1 cache -- the data in the bucket is sorted and the
+         resulting set of items is considered more or less 'done'.  When more data comes in, it is
+         added to another container.  If there are too many tiny containers, merging occurs.
+         Ideally this merging is a 'concurrent' process.
+
+         Organizing such data might work like this: all data is stored in 1 mb (or 4k?) buckets.  So
+         the data we have is a table of such buckets, but the ranges of the buckets might overlap.
+         Adding data is very quick -- append to the last open bucket.  Each thread might even be
+         filling a different bucket.  The buckets can be visualized as existing in a 2d map -- on
+         one axis we have sharding, on the other axis we have 'parallel' buckets that cover
+         overlapping ranges.
+
+         So the result of this approach is very rapid append, and probably reasonable lookup (linear
+         in the amount of overlapping of ranges.)
+
+         But the performance can be 'adjusted': merging overlapping buckets takes time but improves
+         search time in the ranges in question.  The interesting part of this system is that we can
+         grow the memory size of such an application indefinitely and probably still have decent
+         cache behavior.
+
+------------------------------
+
+Problem: current 'accessExpr' loses the '()' vs '[]' vs '.' distinction.
+
+------------------------------
+
+1. We have a parse; print the tree to see if it looks okay.
+
+2. Consider building a useful function and running it.
+
+3. The 'tagging' doesn't work -- maybe a less cute approach is better.  If the current scheme is too
+finicky, pass the tag or a boolean to the 'define' operations directly.  Or just create double
+versions of all of them, the second version passing the symbolic name as the tag.
+
+------------------------------
+
+PROBLEM: The current PEG parser approach doesn't prevent this:
+
+returnx; // parses as return x;
+
+Solution 1: need a combinator that works like this: it matches if rule 1 matches and rule 2 doesn't.
+
+Solution 2: need a combinator that scans for a full ident, but then also must equal a particular
+            string value.
+
+Solution#2 is probably closer to the intention here, and therefore perhaps better.
+
+PROBLEM#2:
+
+  Also need a second type of rule here -- when checking for an ident, need the reverse test to
+  insure that it is not a reserved word.  So what we really need is a special matcher: it matches a
+  regex, with a set of reserved words, and takes a string.  If the string is true, it must be that
+  specific reserved word.  If the string is empty, it must not be any of the reserved words, but can
+  be any other match.
+
+  More generally, the regex matcher should take a boolean predicate test in addition to the regex.
+  The predicate test in these cases can be either a "== foo" or "!= (any reserved word)".  However,
+  the tester for "!= (any reserved)" might have other special properties, like insuring that the
+  symbol is less than 8 bytes (just kidding) or whatever other limits are imposed on variable names
+  and other identifiers.
+
+More generally still...
+
+  The predicate in question should take a given rule, and inspect the output of it.  If the output
+  has certain properties, the predicate will accept or reject the match.  So it is a kind of
+  safeguard on another matcher.
+
+  This safeguard should then take a ParseResult as input.  It should return a ParseResult; in this
+  sense it is a generic ParseResult transformer.
+
+------------------------------
+
+Write rules for expressions, assignments, and so on.
+
+------------------------------
+
+Need to 'garbage collect' the parse grammar.  Use valgrind to verify that the code is not leaking.
+
+------------------------------
+
+Write enough parsing for:
+
+f() {
+    x := 15;
+    x = x + x*x;
+    print(x);
+    return x;
+}
+
+Here 'print' is a built in echo function for debugging.  Real solution may or may not include
+'print' and probably uses/implements it differently if it does.
+
+------------------------------
+
+* Need some version of the 'hidden' concept for parsing to get rid of { and } and so on.
+
+------------------------------
+
+* Write enough of a parsing grammar for a simple expression, such as 3 * 17, and test that code with
+  such an expression.
+
+* Continue the above with parsing code for a function definition.
+
+------------------------------
+
+See ideas for more general discussion.
+
+------------------------------
+
+* GC approach:
+
+  Instead of using shared_ptr everywhere, use *, but make the constructors of language elements all
+  friends of a GCAllocator class, and provide methods in them to iterate over all subelements.  Then
+  GC should be easily implemented.
+
+  The GC object would keep a giant vector of Value* (or similar) that it can iterate over to do
+  'free', and would have access to the runstack to use as a 'starting point'.
+
+  Also, a logical time to do frees is after a function exits.  Specifically, for functions that
+  allocate a lot of objects, keeping track of when they exit might be a way to determine when to do
+  the GC step.  But this is at best a minor observation.
+
+  Per-object-type freelists might be a good idea here too.  Objects could even have a 'FreeYourself'
+  method that would cause them to add themself to the appropriate freelist for their type.
+
+------------------------------
+
+1. Implement an atom system.
+
+   [done]
+
+2. Implement several types like sequence and integer, children of value.
+
+   [done]
+
+3. Implement a scoped collection; use this for a heap.
+
+   [have the beginnings of one, add functionality as needed]
+
+4. Create a global heap scope, and a runtime stack of scopes.
+
+   [done]
+
+5. Use the objects in #4 to implement 'apply', which takes a sequence and runs it as a lambda.
+
+   What does 'apply' do?  First, given an atom and a list of arguments, it looks the atom up, then
+   applies the arguments to it.
+
+   [apply has been written to call 'run' which is declared for Value but not defined for any type.]
+
+6. Write some simple functions and test them out.  Write the supporting parts they need as primitive
+   objects that can be put into the heap.
+
+   Where is the crossover from user-defined functions to the primitives?
+
+Note that the code is based on shared_ptr.  Eventually I will probably want my own refcounting smart
+pointer or else use a boost::intrusive_ptr which is probably similar to what I might create.
+
+Two reasons:
+
+ a. It is more efficient to have a smart pointer that does not need to create a second 'trampoline'
+    object to track the reference counts, when I can just put the refcount in Value or a base class
+    of it.
+
+ b. This might help to support things like mark/sweep.  Although in practice, mark/sweep is probably
+    a bigger problem that needs to be handled another way.
+

@@ -1,0 +1,21 @@
+
+// These should all compile.  This is a list of functions that should work approximately in
+// simplest-first order.
+
+// Note: there is a standard function called 'print'; it writes its input to stdout.  This is for
+// debugging; later versions may define this in-language.
+
+noop()
+{
+}
+
+square(x)
+{
+    return x*x;
+}
+
+print_square(z)
+{
+    print(square(x));
+}
+

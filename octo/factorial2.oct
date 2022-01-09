@@ -1,0 +1,20 @@
+
+factorial(n)
+{
+    i := 1;
+    f := 1;
+
+    while(i < n) {
+        f *= i;
+        i += 1;
+    }
+    print_nf(n, f);
+}
+
+print_nf(n, f)
+{
+    print("n = ", n);
+    print(", f = ", f);
+    print("\n");
+}
+

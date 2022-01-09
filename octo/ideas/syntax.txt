@@ -1,0 +1,105 @@
+
+First, note the a lot of the syntax of the language can be 'lispy' on the inside without being LISPy
+on the outside.  By way of example, C language often is translated through a parse tree that is
+fairly LISPy on the way to becoming assembler (which is strictly old-style procedural, e.g. with
+GOTOs.)
+
+So something in curly notation that looks like this:
+
+foo(a, b) {
+    c := a*a + b*b;
+    return sqrt(c);
+}
+
+Might be equivalent to a lispy expression like this:
+
+(defun foo (a b)
+  (let c (+ (* a a) (* b b))
+    (sqrt c)))
+
+And even in LISP the above 'defun' is a macro or similar.
+
+The way to read the topmost thing is this:
+
+ foo         // atom to put into the global scope with a value of ...
+ (...) {...} // build a normal lambda for me; code in the {} is runtime code.
+
+ c := a*a + b*b; // is pretty much equivalent to the 'let' statement.
+ sqrt(c);        // last expression evaluated becomes the function output.
+
+ // ... however, it might make sense to provide a 'return' statement.  The last-thing-is-the-result
+ // is a LISPy convention that is nice when working with single-expression functions, which in some
+ // sense all LISP code is, but in more modern styles, promoting the last statement or either branch
+ // of the last if/else to the return value might not be sensible.
+
+Another LISPy thing that looks like a glitch today is how multiply defined things just silently
+overwrite each other.  This is convenient in a REPL loop but creates ility problems in large
+systems.
+
+
+OPEN QUESTION:
+
+  Here I am implying a conversion from "c := a*a;" to (let c (* a a)) or perhaps skipping the 'LISP'
+  transcoding.  Is this ever a bad thing?
+
+  The LISP argument for the LISP syntax is that you can build LISP syntax as normal data objects and
+  then convert to a function; or read the normal data that is (or was, in a compiled program?) the
+  'definition' of a function.
+
+  So if I read the 'list' or sequence that underlies the above definition of 'f' what do I get?  The
+  LISPy version or something closer to the source?
+
+  LISPy version:
+
+     This works because Real Programmers (tm) can do the conversion above in their heads and just
+     prefer not to.  If you are doing macro swizzling, just suck it up that the code looks like an
+     AST once it is compiled, and be happy that you can iterate over the statements.
+
+  NON-LISPy version:
+
+     This is more consistent on some level, but can this even be done?  More specifically, to make
+     the 'build code at runtime' concept work, I need to be able to create a normal data structure
+     (which in LISP always means a list, but I digress) which I then turn around and 'run'.
+
+     But what if I create a macro that is a happy normal list that looks like this:
+
+     (('a 'b) ('c ':= 'a '* 'a '+ 'b '* 'b) ('sqrt '(c))
+
+     Will that hurt anyone's feelings?  Is there a problem here?
+
+     If I can compile and run the first version, isn't it equally possible here?  This is more or
+     less just the output of the 'lex' phase from the infix code above.
+
+  The LISP approach makes more sense if you plan to dig through the equations and statements
+  programmatically, such as replacing 'plus with 'mult or something.  I think this kind of
+  metaprogramming is probably not what people actually do or want, for the most part.
+  ...
+
+TODO:
+
+  Look at the 16 macros (link is in Pocket) to see what can be done.  For now, get the parser working.
+
+
+------------------------------
+
+Look at examples.txt for a list of things that I would like to work properly.
+
+------------------------------
+
+This example that I used above is a good starting point for defining a function:
+
+foo(a, b) {
+    c := a*a + b*b;
+    return sqrt(c);
+}
+
+LISPY version, more or less:
+
+(defun foo (a b)
+  (let c (+ (* a a) (* b b))
+    (sqrt c)))
+
+My version:
+
+["define_function", "foo", ["a", "b"], [":=", "c", ["+", ...
+

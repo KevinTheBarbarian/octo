@@ -1,0 +1,366 @@
+
+What is OCTO?
+-------------
+
+It's a language designed to steal the best parts from a bunch of other languages.  However, let's be
+clear: not all the parts, and not really even all the good parts, just the best parts.  Why?  It's
+because other languages, generally speaking, all have to make trades between simplicity, power,
+efficiency, and usability.  For my purposes I'm interested in having a simple language where I can
+do all the things I want to do.  What this means is that I want a language with lots and lots of
+power and various idioms for doing all the best things other languages can do.  But some languages
+have so much flexibility or go so far in a particular direction that there isn't a road back.
+
+For example: in C++ you can do anything, but it has so many features (intentional and inherited)
+that it is hard to get things done.  Moreover, there are certain 'best practices' in C++ that tend
+to bloat the code written in the language.  So C++ is a good tool for a lot of things but tends to
+get verbose.
+
+LISP is powerful and 'elegant' but also ugly.  It has a mathematical quality that reminds me why I
+didn't go into mathematics.  That is, in order to examine a LISP program you need to be able to hold
+a lot of complex structure in your head -- even simple things like 'get the third element of this
+list' require arcane or ugly notation.  Because 'lists' are the only way to do things, LISP programs
+tend to look like a parse tree from a more expressive language.
+
+I think some of the apparent power of LISP comes from the fact that other languages have a lot more
+required and optional syntax to get from A to B.  So some programs get bigger because you have
+required syntax, but even more so other programs become bigger because you have optional syntax that
+everyone uses anyway.  For example, in Java or C++ people write accessors and then hide their data.
+This is smart on one level, but on another level, if you have a struct with 3 integers, you don't
+need to do that.  So there becomes this little castle with moats and drawbridges making sure you use
+the 3 integers in the right way and describing for you how the object is intended to be used.
+
+There are good reasons to have these capabilities, but they tend to take up a lot of space.  So you
+should use them when the power is needed, but C++ common practice encourages more and more and more
+perfection in API design even for throwaway or temporary local objects.
+
+So many of the languages which claim to be powerful because you can do more in fewer lines, actually
+have this phenomenon not because C++ or Java requires you to write longer stuff but because C++ and
+Java programmers are trained to wrap the objects up in safety wrappers.  Another problem is that C
+doesn't initialize values, so a C structure has the interesting quality of having random junk in
+them unless you wrap it in a constructor, which of course C doesn't provide.  C statements like ++i
++ i-- are also legal but have undefined consequences, which means you can't use them safely.  This
+is a big 'screw you' from the language designers to the programmer, and is about performance or
+something (supposedly -- this is completely bogus logic though). But it's an old problem, so there
+isn't a lot of anger about it.  So for these and many other reasons, C++ programmers have a
+once-bitten-twice-shy attitude about 'safety'.
+
+
+Anyway, this is the grab list for our raid on other language systems:
+---------------------------------------------------------------------
+
+LISP:
+
+Paul graham says this is what made LISP different (at the time):
+
+1. Conditionals. A conditional is an if-then-else construct.[...]
+
+2. A function type. In Lisp, functions are first class objects-- they're a data type just like
+integers, strings, etc, and have a literal representation, can be stored in variables, can be passed
+as arguments, and so on.
+
+[The first thing (functions in variables) is common now, but the other aspects are called reflection
+and are implemented with great variability.  I'd like to see in C++ the ability to ask classes about
+themselves, more than just the 'sizeof' operator.  There's no real reason this couldn't be made
+available but it hasn't been.  One problem is that there's no obvious single right way to do it so
+the standards committee might never be able to agree on one true definition for it.]
+
+3. Recursion. [...]
+
+4. A new concept of variables. In Lisp, all variables are effectively pointers. Values are what have
+types, not variables, and assigning or binding variables means copying pointers, not what they point
+to.
+
+5. Garbage-collection.
+
+6. Programs composed of expressions.  Lisp programs are trees of expressions, each of which returns
+a value. [...] (e.g. there are no statements)
+
+When a language is made entirely of expressions, you can compose expressions however you want. You
+can say either (using Arc syntax)
+
+(if foo (= x 1) (= x 2))
+
+or
+
+(= x (if foo 1 2))
+
+7. A symbol type. Symbols differ from strings in that you can test equality by comparing a pointer.
+
+   [this is 'atom' which I think acts as an interned string that is available at both 'compile' and
+   'run' time.]
+
+8. A notation for code using trees of symbols.
+
+   [this is lisp's ugly-ass syntax]
+
+9. The whole language always available. There is no real distinction between read-time,
+compile-time, and runtime. You can compile or run code while reading, read or run code while
+compiling, and read or compile code at runtime.
+
+Running code at read-time lets users reprogram Lisp's syntax; running code at compile-time is the
+basis of macros; compiling at runtime is the basis of Lisp's use as an extension language in
+programs like Emacs; and reading at runtime enables programs to communicate using s-expressions, an
+idea recently reinvented as XML.
+
+[ this is an interesting comment. one of the interesting ideas from FORTH and LISP (and other
+places) is writing code that runs at compile time.  In fact you could write code that runs at:
+
+   1. scan (lex) time.  Arguably C++ has something like this with user-defined literal suffixes.
+
+   2. parse time -- e.g. code that generates other code
+
+   3. compile time -- after all parsing is done, code that computes things for example
+
+   4. link time -- there are facilities in ELF for this for example.
+
+   5. run time (1) -- this is the normal flow of code logic
+
+   6. event handling or other special code -- abnormal control flow or code that runs in special places.
+      for example, java has the concept of user-defined class loaders.  AOP or other concepts like this
+      can be done at runtime or via monitoring by an external facility... ]
+
+--------------
+
+What do we want from this?  Well, we don't need the ugly syntax.  The reason that the syntax needs
+to be something you can manipulate in the language is so that macros can manipulate the syntax.
+However, guess what -- the macro system could use strings.  Voila!  My code is made of bytes and my
+language processes data in bytes!  Homoiconicity is here!  And this is indeed powerful.  The power
+is tainted by the reputation of C macros, which kind of suck eggs power-wise.  But that's because
+the C preprocessor is very very weak as a programming language.
+
+So another way to describe the (real) benefit needed here, is that the code that runs at compile
+time (in C this is the preprocessor) needs to be able to build code that can be compiled.  In LISP
+this is done by making LIST the only data type and making the compile-time code LISP code.  This is
+where the power comes from -- the code that runs at compile time is in the same language as the code
+that runs at runtime.  So strings can work here, particularly with good string 'swizzling',
+e.g. bash-like substitution would be nice but there are other ways.  C++ has a little of this power
+but the C++ 'macros' are template metaprograms, which is really bad too.  The problem for C and C++
+is that they are traditionally only defined as compile-only languages and they are powerful enough
+that the designers didn't feed like they could run C code at C runtime.  If they could have let
+themself do so, then a lot of C++ might have been possible as a C code-based macro.
+
+MACROS in general have two important design points: the kind of code or logic that can be used to
+build the output, and the sort of syntax tree manipulation that is possible with a macro.  For
+example, in C the macro can only be run as a namespace-free substitution of a token, or of a
+function call (and even then, only if the 'ident' is adjacent to the paren-list, which is not true
+of C language function calls in general.)
+
+In theory, MACROS could do anything up to inserting fully specified parse-rules into the language.
+Allowing users to define new parse rules for a language like C and actually running those parse
+rules and the associated C code at compile time is unheard of and quite a far-out idea.
+
+It is quite possible of course.  But it has the potential to really 'weird' the language.
+
+  1. First, there is the problem of syntactic 'hijacking'.  This is when legit base-language code is
+     not parsed as expected because a MACRO is defined that reinterprets the syntax.  This may seem
+     cool but is a problem because, like a recreational drug, you don't know what your brain will
+     look like on the other end of the experience.
+
+     We can fix this: the macro will only fire when there is otherwise a syntax error.
+
+  2. But this is a problem too -- it means that the slightest syntax error takes you into a magical
+     kingdom where a dozen new rules from kalamazoo are trying to twist the code into a more
+     interesting shape.  How do we know which rule it is?
+
+     To fix this, we need some kind of macro-related clue.  There are several options:
+
+      A. The expression must contain (somewhere) an ATOM that is associated (only) with the macro.
+         It is a syntax error to define two macros that use the same ATOM for this, and it is a
+         syntax error to use the same ATOM for a macro and for any other purpose, where both
+         definitions are visible to the code where the macro is mentioned.
+
+      B. For each defined macro, we can specify a series of 'rewriting rules' that match some part
+         of the syntax (including the macro).  Each such rewriting rule is tested in turn, and if
+         the match works, the rewrite occurs.  Normally the rewriting will remove the 'clue' symbol.
+
+         For example, this might be a rewriting approach for a macro:
+
+            TRIED {
+               "TRIED ${id:atom} = ${init:expr};"
+                   -> "${id} = null; try { ${id} = ${init}; } catch(std::exception& e) {}";
+            }
+
+         The 'TRIED' marker disappears in this rewriting, but if left in, another rule defined in
+         the same container of rules might fire, rewriting things further.
+
+         If left in at the end, it is likely that the parse would fail because by the rule above,
+         TRIED is not allowed to be defined in any other way.  If it appeared in a string that would
+         be okay, however.
+
+      C. The first problem with the solution in B is that it is like the solution in C language:
+         it's a text substitution; what if I want to write code?
+
+         Instead of this text, I should be able to put in any code that builds a string.  That might
+         look like this, depending on notational convenience.
+
+            TRIED {
+               "TRIED ${id:atom} = ${init:expr};"
+                   -> (id, init){ format("%{1} = null; try { ${1} = ${2}; } catch(std::exception& e) {}", id, expr); }
+            }
+
+      D. The second problem is, what is the pattern above?  Does ${id:atom} match an atom?  What is
+         an atom?
+
+         I think the probably answer here is that the 'code' provided by the user has to be
+         scannable, but not parsable.  Moreover, it has to be more than simply scannable: the parens
+         and brackets have to match up, for example.  And we should assume that any whitespace in
+         the user-provided pattern can match any whitespace at the macro application site, so that
+         (for example) the presence of a comment won't break the parse.  Also, the removal of
+         non-significant whitespace must be allowed.
+
+         At this point, we are getting beyond what is practical by doing normal transformations to
+         make the string pattern more flexible.  This is also a problem that C had -- the preproc
+         would do a little balancing and matching with the macro output but it was always a little
+         touchy about certain things, like the presence of nested macros.
+
+         Note that LISP gets around this because all properly balanced list expressions are valid
+         programs.  No compilation is necessary -- just interpret the lists; you can compile the
+         definitions that you understand if/when you want to.
+
+         LISP also gets around this in that the first token of the list is the macro -- if you
+         decide to have rewriting rules that operator on the middle of an expression then you have
+         the problem that the rest of the expression may not be valid.  But the patterns above sort
+         of solve this because they require specific parse elements (expr, atom) in the code, rather
+         than just having a 'match some stuff' regex embedded in there.
+
+         This imposes some language grammar limits: We need at least a three pass compiler.  Passes:
+
+          a. Lex time -- scan symbols. (note that we could have a different kind of 'scanner macro';
+             but let's not.)
+
+          b. Bracket and paren balancing and statement grouping.
+
+          c. The rest of the compile -- syntax and expression validity checking for example,
+             possibly multiple passes here.
+
+         Now an interesting consequence of this, is that to run a macro, we need to have compiled it
+         into something usable.  If we take the modern (if not universal) view that the order of
+         definitions should not change the meaning of a program, then we kind of have a problem
+         where we need to read all the definitions before parsing any of them, but there could be
+         cycles in the macro definitions.  Is this a practical problem?  Perhaps not...
+
+         Here our macro processing would be a new step between b and c.
+
+Let's revisit Paul's list:
+
+   Conditionals:
+        yes
+
+   Functions are a type:
+        yes; probably everything is an object too, including functions and classes.
+
+   Recursion:
+        yes
+
+   GC:
+        can we get away with refcount for now?
+
+   Programs are expressions:
+
+        I'd rather include 'return' statements too, but I see no harm in something like 'if'
+        returning a value for example.  It's okay with me if conditional and similar have
+        expression-like value propagation.
+
+        (if foo (= x 1) (= x 2))
+            or
+        (= x (if foo 1 2))
+
+        Technically not needed, but it really hurts nothing either.  The pluggability is nice as
+        Paul points out.  It also makes parsing simpler since there are fewer parts (no statement or
+        statement like constructs).
+
+7. A symbol type. Symbols differ from strings in that you can test equality by comparing a pointer.
+
+   [this is 'atom' which I think acts as an interned string that is available at both 'compile' and
+   'run' time.]
+
+   Yeah, I want this.  Basically, 'intern' all of the system's idents to get indices.  These are
+   good keys for things like switch statements (if generating C or C++ code) and make a lot of
+   things a little cheaper.  Also intern string literals (e.g. that appear in code), but not all
+   string values that are input or what not.
+
+8. A notation for code using trees of symbols.
+
+   [this is lisp's ugly-ass syntax]
+
+   A good notation is the kind where you can read it.  LISP's lists can satisfy #8, but then
+   expressing code as a readable, infix, list of statements works too, as long as you can both parse
+   and extract that kind of thing reliably.  The idea that only a CONS list can be considered a
+   machine readable construct seems a little dated.
+
+9. The whole language always available. There is no real distinction between read-time,
+compile-time, and runtime. You can compile or run code while reading, read or run code while
+compiling, and read or compile code at runtime...
+
+   Yes, these seem nice, put them in the shopping cart too.
+
+Running code at read-time lets users reprogram Lisp's syntax; running code at compile-time is the
+basis of macros; compiling at runtime is the basis of Lisp's use as an extension language in
+programs like Emacs; and reading at runtime enables programs to communicate using s-expressions, an
+idea recently reinvented as XML.
+
+   I might not bother with 'read time'.  Compile and run time seem like enough.  The 'compile time'
+   here is between the two phases of 'parse'; after statement grouping but before 'emitting' a
+   runnable structure or bytecode or whatever.
+
+
+
+MAYBE that's enough for stealing from LISP.
+
+
+NEXT: Object Oriented code
+
+Stealing from C++, Java.
+
+
+1. The concept of an object being some data with some functions attached, and the idea of having
+several such object definitions with different functions but the same interface, useful really
+often.  Lately 'inheritance' is getting a bit of negative press because (I think) people are
+visualizing taking a big C++ class and trying to subclass it to change one part that wasn't intended
+to be changed.
+
+The rule of thumb should be "no stalking".  Put another way, avoid situations where one side thinks
+there is a relationship but the other doesn't.  In Java this means you should decide to either make
+something reusable or else make it 'final'.
+
+The modern thing is usually to define an interface.  Now, in C++ or Java, this is really useful.
+
+Another thing that can be done is to fine tune each element of a class.  Some are private, some are
+protected.  Some are mutable, some are not.  Static fields, which are really part of the class, are
+possible too.  Maybe a better approach;
+
+  1. Define the 'class' and the 'object' as distinct things.  The class is its own type that is used
+     to build the object, but static fields should go into the class not the object.
+
+  2. That seems unnecessary, but by having classes be first-class citizens, you can have code that
+     reads a class, does something, and produces a different class.
+
+  3. Classes are probably immutable.
+
+  4. Objects may be immutable on a class-by-class or instance-by-instance basis?  Probably the
+     former; but having a class that is just like another but immutable seems like a nice idea too.
+
+A good rule of thumb might be to avoid some of the boiler plate needed to make classes in languages
+where everything has to be specified all the time.  Defining a Java method usually requires more
+adjectives than ordering for a vegan at starbucks.
+
+(It kind of seems like this will look like OCAML, but remember: 1. Ocaml isn't that bad.  2. This
+will be a curly-brace-langauge.)
+
+
+Performance Tuning:
+-------------------
+
+Languages like C and C++ have the possibility of high performance (by not preventing it,
+essentially, and by having representations of low-level things.)
+
+What is possible here?
+
+1. Don't make every object a hashtable of hashtables of hashtables.
+
+2. A better approach to objects is probably the array-of-values; some of the values might be
+functions, ideally defined in the interface.
+
+
+
+

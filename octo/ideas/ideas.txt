@@ -1,0 +1,231 @@
+
+Octo design
+-----------
+
+1. Borrow the best from various languages.
+
+2. Don't borrow too much -- even good features which add too much complexity should be omitted.
+
+3. For syntax examples / brainstorming, see syntax.txt.
+
+------------------------------
+General chat:
+------------------------------
+
+From LISP, borrow homoiconic powers.  However, don't borrow the syntax, per se.
+
+Sub-ideas:
+
+1. LISP's concept of 'everything is a list' seems cool, but forward-linked-list processing is not
+the state of the art so much any more.
+
+  A. LIST could be replaced by a generic sequence class.
+
+  B. Sequences work like D's arrays & ranges.  We can support some interesting concepts:
+
+     1. A lot of normal LISP style programming is possible using [0] for CAR and [1..] for CDR.
+
+     2. You can search the list for sublists or elements, effectively treating it as a list or set.
+        If you treat it as a set, then each element in the list is added to an unordered_set<> to
+        speed up your actions.  If you treat it as a map and the list is made of sublists, then an
+        unordered_map is created on the fly in the background to make the list faster.
+
+     3. If you query for ranges of values, a normal c++ map<> is created on the fly in the
+        background.
+
+     4. In some cases, we'd like to have an immutable snapshot or a normal copy of the object; in
+        these cases, the system will manage the ranges to try to minimize pain.  If you ask for a
+        copy of a short subrange, it will copy; if you ask for a copy of the whole thing, you may
+        get a COW version of the data structure.
+
+        In COW mode, if the 'extra' copies are KNOWN to have gone away, the list can become mutable
+        again without copying (via escape analysis/refcounting).
+
+     But the underlying data is always sequentially ordered whether indexes exist or not.  This
+     might require a lot of weird stuff like different operations to append versus insert for maps.
+     It works better if you assume that it will always act like a multiset/multimap rather than a
+     plain map/set.
+
+     (Is this a good idea?  Unknown -- so for now, implement parts 1 and maybe 4.)
+
+  C. We have a sticky situation with values versus references.  It's mostly resolvable by having the
+     user tell us whether to make a copy or share the data.  This is not a const thing -- just do
+     you want a snapshot, or to share the thing?  Snapshot might be something like COW but for the
+     short term it will just copy.
+
+ ALL OF THIS STUFF is pretty low level... what is needed first is syntax, and how the LISP nature
+ interacts with the non-lispy stuff.
+
+------------------------------
+
+What about more use of the "|" operator for matching things?  For example:
+
+ foo(x, int|string|double y)
+ {
+     return x * (y + y);
+ }
+
+This would limit the potential of 'y' to three types, while letting 'x' be a free template
+parameter.  The question is, does this add anything?
+
+ YES: It allows you to say concrete things about the function's behavior, because you can reason
+ about the combinations of types that might occur.
+
+------------------------------
+
+Argument type decorations!
+
+   1. Need to enumerate the different dimensions, defined as questions we would ask about the type.
+
+   2. What are the options for each dimension?
+
+   3. What do each of these dimensions mean in terms of C++ typing for example?  And what are the
+      important operations (code actions) on values and how do these properties affect them?
+
+   4. Which does the user need to tell us?
+
+   5. Which can we figure out?
+
+   6. What are the performance consequences and how can we duck em?
+
+Discussion:
+
+   1. Dimensions
+
+      Constancy -- can the object be modified by the callee?  E.g. are we just taking a peek at it
+      or can the callee change it?  Even in const objects there might be some 'index updating' or
+      similar that is happening.  There are two dimensions here -- first, we may want 'const' to
+      avoid accidental changes (and as a kind of documentation), and second, to avoid 'clobbering'.
+
+      (Im)mutability -- can the object be modified by anyone?  This has several motivations.  In
+      terms of changes to the object, Immutable is like const.  In terms of 'Capturing' the object,
+      such as putting it into a container, immutable lets us know that we can safely do anything
+      read-only with the object and everyone always treats it as a reference.  For the caller,
+      immutability means I can pass the object, knowing the callee won't change it -- from the
+      callee's POV it can receive and store or pass on an object and know it won't be modified after
+      being placed in a container for example.
+
+      In/Out-ness -- if the object is modified in the callee, should the caller see the changes?
+      There is also the depth issue -- modify the value or modify the passed-in symbol?
+      Traditionally, primitives and complex objects have different defaults here.  If I pass an
+      'int' to a function I expect to get a copy of the value; changing that doesn't affect the
+      caller.  In C++ this is the same for objects/containers as well; but in Java and some other
+      languages, objects and containers don't get copied or shadowed or COW'd without the programmer
+      explicitly implementing that.  For 'out' parameters, C++ allows the value to be assigned back
+      through the parameter.  It's reasonable to avoid that and many languages do, but whether it is
+      cleaner to have NAMED return value slots (as out parameters give you) or to avoid out
+      parameters as a badly mixed concept, is an interesting question.  With the right kind of
+      'lambda struct' (a struct that can be declared on the fly) named output parameters might be
+      practical.
+
+          Since we are looking at this as a GC language, do we really care about ownership?  YES,
+          because we also want the semantics of passing a container to a function to be sane.  We
+          want to be able to pass a container to a function, which can use the container in a const
+          way and still not have to deep copy the container.
+
+      Evaluation -- is the argument evaluated before the call?  To some extent it has to be because
+      we want something like lexical scoping, so we need to bind the variables / atoms to points in
+      the lexical scope, not the dynamic or callee scope.  There are different options for
+      evaluation:
+
+          1. The argument is a lazy expression and we are just throwing it in there.  It can be
+             evaluated or not by the callee code.
+
+          2. The argument is a lambda/functor/delegate.  It can be evaluated by the callee one or
+             more times, and if it has side effects they will be noticed each time.  In a pure
+             function scenario, the lambda also has inputs and outputs.
+
+             A lambda can be seen as a function pointer passed by value.
+
+             Can the callee modify the lambda to add functionality or assign the argument to a
+             different lambda?  The gut reaction is 'lets make them always const'.
+
+          3. The argument is fully evaluated before calling, and we see only the value resulting
+             from this process.
+
+          4. The argument is a reference to a local 'thing' in the caller, essentially it must be an
+             atom/ident/name/lvalue and we will or might assign to it, and the caller will be
+             affected.  It might not be named, as in C++ where you can pass foo(x[5]) and expect
+             x[5] to be a reference to something somewhere and to be updated if foo has a ref arg.
+
+    These are existing language features.  What are the real questions?
+
+      1. Does the caller need the object after the call?  The language can figure this out.
+
+         With GC it isn't all that important to nail down ownership, as long as the
+         const/immutable/etc questions are handled.
+
+      2. Does the callee need the object after the call?  This has to do with 'escape analysis'.
+
+      3. If the callee modifies the object reference, does the caller see the change?
+
+         foo(a) { a = 55; }
+
+         b := "hello";
+         foo(b);
+         // is b == 55?
+
+      4. If the callee changes a passed object, does the caller see the change?
+
+         foo(a) { a[54] = "hello"; }
+
+         b := { "a" : "b", 54 : "whomp" };
+         foo(b);
+         // does b[54] have value "hello" or "whomp"?
+
+
+    Limits of static analysis: We don't want the semantics of what occurs to be too dependent on
+    static analysis.  Specifically, we don't want the programmer scratching their head saying this
+    doesn't work -- did I give the compiler the wrong idea about what I need?  You don't want a
+    scenario where you intend to (1) pass a collection to a function that does a lookup, then (2)
+    print the collection to stdout, and (3) use the collection in some other way, and have the print
+    call somehow change the outcome of (3) or, in a really bad design, (1).
+
+    Another important aspect is that we don't want the caller to be unduly burdened by what the
+    callee does.  So in the pass-by-value scenario, we don't want the caller to have to later do
+    clones of all their objects because the callee captured a pointer to them.  On the other hand,
+    this might not be avoidable.
+
+    Possible trick:
+
+      If the callee modifies a static object, we could use the BIGTABLE technique of having a second
+      'map' that holds modifications to the first map.
+
+    Alligators/swamp draining:
+
+      Be careful about getting too far from something that you could do (in theory) in C or C++
+      because it could get really hard to optimize / compile such code.
+
+------------------------------
+
+Complexity management:
+
+  What is the simplest thing?  And then what are the other things we'd like?  The difficulty of
+  syntax should correspond to simplicity and common-ness of semantics.
+
+  1. Pass by value; support multiple returns (one way or another) but not as 'out' arguments.
+
+  2. Allow passing mutable arguments, esp. containers.  For example, it is nice to have methods that
+     you pass a 'receiver' to, and that fill the receiver with stuff.
+
+  3. 'Lazy arguments' is too vague of a term; there are several cases:
+
+     a. Functors/closures/lambdas/whatever; callable chunks of code with attached state.
+
+        Note that most attached state can be considered as a single pointer to a struct or tuple of
+        some kind.
+
+     b. Macro-like code that can be used to build other code; but is this really different?
+
+     Also, in a homoiconic langauge, aren't these more or less similar anyway?  That is, isn't a
+     lambda just a piece of data (a sequence) that I can choose to apply as a function?
+
+------------------------------
+
+Consider making 'cache oblivious' or 'cache aware' algorithms part of the language.  For example,
+when allocating keys for a tree map or set, the keys can be considered immutable once they are in
+the map.  Therefore, we can store the value of the key in the map 'node'.  This means the node will
+have a next pointer (or left/right pointers) and the bytes of the key value.  This can work on the
+stack too, for any object that we can 'promote' to immutable or that is primitive enough to be fixed
+in length already (and not too large, as we want to limit the stack depth.)
+
